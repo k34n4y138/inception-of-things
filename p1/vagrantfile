@@ -1,0 +1,82 @@
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    vagrantfile                                        :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: zmoumen <zmoumen@student.42.fr>            +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2024/05/20 17:38:26 by zmoumen           #+#    #+#              #
+#    Updated: 2024/05/20 17:44:07 by zmoumen          ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
+
+BASE_OS = "generic/alpine318"
+MASTER_IP = "192.168.42.110"
+WORKER_IP = "192.168.42.111"
+
+MOUNT_VAGRANT_DIR = <<-SHELL
+	echo "mounting vagrant shared folder..."
+	mkdir -p /vagrant
+	mount -t vboxsf -o uid=$(id -u vagrant),gid=$(id -g vagrant) vagrant /vagrant
+	SHELL
+
+INSTALL_VBGUEST = <<-SHELL
+	echo "installing virtualbox guest additions..."
+	apk update
+	apk add virtualbox-guest-additions
+	rc-update add virtualbox-guest-additions boot
+	SHELL
+
+INSTALL_K3S_MASTER = <<-SHELL
+	echo "installing k3s in server configuration..."
+	export INSTALL_K3S_EXEC="--node-ip=#{MASTER_IP} --bind-address=#{MASTER_IP} --advertise-address=#{MASTER_IP}"
+	echo "params: $INSTALL_K3S_EXEC"
+	curl -sfL https://get.k3s.io | sh -s -
+	rc-update add k3s boot
+	sleep 5 # wait for k3s to be ready
+	cat /var/lib/rancher/k3s/server/node-token > /vagrant/.master_token
+	SHELL
+
+INSTALL_K3S_WORKER = <<-SHELL
+	echo "installing k3s in worker configuration..."
+	while [ ! -f /vagrant/.master_token ]; do sleep 1; done
+	export INSTALL_K3S_EXEC="agent --node-ip=#{WORKER_IP} --server https://#{MASTER_IP}:6443 --token-file /vagrant/.master_token"
+	echo "params: $INSTALL_K3S_EXEC"
+	curl -sfL https://get.k3s.io | sh -s -
+	rc-update add k3s-agent boot
+	SHELL
+	
+Vagrant.configure("2") do |config|
+	config.vm.box = BASE_OS
+	config.vm.provider("virtualbox") do |vb|
+		vb.memory = 1024
+		vb.cpus = 1
+		vb.customize(["modifyvm", :id, "--natdnshostresolver1", "on"])
+		vb.customize(["modifyvm", :id, "--natdnsproxy1", "on"])
+		vb.gui = false
+	end
+	
+	config.vm.synced_folder(".", "/vagrant", type: "virtualbox",
+							mount_options: ["dmode=777", "fmode=666", auto:false])
+	config.vm.provision("install_vbguest",type: "shell", privileged: true, privileged: true, inline: INSTALL_VBGUEST)
+	config.vm.provision("mount_synced_folder",type: "shell", privileged: true, inline: MOUNT_VAGRANT_DIR, run: "always")
+	
+	config.vm.define("zmoumenS") do |server|
+		server.vm.hostname = "zmoumenS"
+		server.vm.provider "virtualbox" do |vb|
+			vb.name = "zmoumenS"
+		end
+		server.vm.network("private_network", ip: MASTER_IP, virtualbox__intnet: "inceptionP1")
+		server.vm.provision("k3s_setup_master", privileged:true, type: "shell", inline: INSTALL_K3S_MASTER)
+	end
+	
+	config.vm.define "zmoumenW" do |worker|
+		worker.vm.hostname = "zmoumenW"
+		worker.vm.provider "virtualbox" do |vb|
+			vb.name = "zmoumenW"
+		end
+		worker.vm.network("private_network", ip: WORKER_IP, virtualbox__intnet: "inceptionP1")
+		worker.vm.provision("k3s_setup_worker", privileged:true, type: "shell", inline: INSTALL_K3S_WORKER)
+	end
+end
