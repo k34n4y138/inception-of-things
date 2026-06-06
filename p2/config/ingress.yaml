@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: p2-ingress
+  namespace: inception-p2-namespace
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: app1.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: p2-app1-service
+                port:
+                  number: 80
+    - host: app2.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: p2-app2-service
+                port:
+                  number: 80
+    - host: app3.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: p2-app3-service
+                port:
+                  number: 80
