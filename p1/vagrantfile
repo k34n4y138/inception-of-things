@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    vagrantfile                                        :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: zmoumen <zmoumen@student.1337.ma>          +#+  +:+       +#+         #
+#    By: zmoumen <zmoumen@student.42.fr>            +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/05/20 17:38:26 by zmoumen           #+#    #+#              #
-#    Updated: 2026/05/02 22:49:18 by zmoumen          ###   ########.fr        #
+#    Updated: 2026/06/06 20:19:40 by zmoumen          ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -56,10 +56,10 @@ Vagrant.configure("2") do |config|
 		server.vm.provision("k3s_setup_master", privileged:true, type: "shell", inline: INSTALL_K3S_MASTER)
 	end
 	
-	config.vm.define "zmoumenW" do |worker|
-		worker.vm.hostname = "zmoumenW"
+	config.vm.define "zmoumenSW" do |worker|
+		worker.vm.hostname = "zmoumenSW"
 		worker.vm.provider "virtualbox" do |vb|
-			vb.name = "zmoumenW"
+			vb.name = "zmoumenSW"
 		end
 		worker.vm.network("private_network", ip: WORKER_IP, virtualbox__intnet: "inceptionP1")
 		worker.vm.provision("k3s_setup_worker", privileged:true, type: "shell", inline: INSTALL_K3S_WORKER)
