@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app3-deployment
+spec:
+  selector:
+    matchLabels:
+      appname: app3
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        appname: app3
+    spec:
+      containers:
+        - name: app3-container
+          image: nginx:1
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Hello from APP 3" > /usr/share/nginx/html/index.html
+              nginx -g "daemon off;"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app3-service
+spec:
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 8083
+      targetPort: 80
+  selector:
+    appname: app3
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app3-ingress
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: app3.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app3-service
+                port:
+                  number: 8083

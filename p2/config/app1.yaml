@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app1-deployment
+spec:
+  selector:
+    matchLabels:
+      appname: app1
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        appname: app1
+    spec:
+      containers:
+        - name: app1-main
+          image: nginx:1
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Hello from APP 1" > /usr/share/nginx/html/index.html
+              nginx -g "daemon off;"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app1-service
+spec:
+  type: ClusterIP
+  selector:
+    appname: app1
+  ports:
+    - protocol: TCP
+      port: 8081
+      targetPort: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app1-ingress
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: app1.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app1-service
+                port:
+                  number: 8081
