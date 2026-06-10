@@ -2,7 +2,9 @@
 # Author: Zmoumen (Zakaria Moumen)
 # Email: zmoumen@student.1337.ma
 # Desc: Provisioning script around VBOX to spin up a virtual machine
-set -e
+
+set -eo pipefail
+
 # Check if VBox exists
 if ! command -v vboxmanage &> /dev/null; then
         echo "Error: VirtualBox (vboxmanage) is not installed. Please install it to proceed."
@@ -47,10 +49,7 @@ if vboxmanage showvminfo "$VM_NAME" &> /dev/null; then
         if vboxmanage showvminfo "$VM_NAME" | grep -q "State:.*running"; then
             echo "Stopping the existing VM '$VM_NAME'..."
             vboxmanage controlvm "$VM_NAME" poweroff
-            # Wait for the VM to fully power off
-            while vboxmanage showvminfo "$VM_NAME" | grep -q "State:.*running"; do
-                sleep 1
-            done
+            sleep 3
         fi
         vboxmanage unregistervm "$VM_NAME" --delete
         echo "Existing VM '$VM_NAME' has been deleted."
@@ -99,20 +98,24 @@ FULLNAME="Debian User"
 ISO_PATH="$FILE_PATH"
 VM_NAME="$VM_NAME"
 
+
+POST_INSTALL_SCRIPT=$(base64 -b 0 ./vm_postinstall_script.sh)
+
 vboxmanage unattended install "$VM_NAME" \
   --iso="$ISO_PATH" \
   --user="$USERNAME" \
   --password="$PASSWORD" \
   --full-user-name="$FULLNAME" \
   --install-additions \
-  --start-vm=gui \
-  --post-install-command="chroot /target apt-get -y install openssh-server && chroot /target systemctl enable ssh"
-
+  --start-vm=headless \
+  --post-install-command="bash -c \"echo $POST_INSTALL_SCRIPT | base64 -d | bash\""
+  
 
 echo "Unattended installation started for VM '$VM_NAME'."
-echo "go to advanced options and select autoinstall. cfg path is file:///cdrom/preseed.cfg"
 
 sleep 10
+
+echo "Sending keystrokes to the VM to automate the installation process..."
 
 VBoxManage controlvm "$VM_NAME" keyboardputstring "A" # advanced options
 VBOXMANAGE controlvm "$VM_NAME" keyboardputscancode 1C
@@ -128,19 +131,17 @@ VBOXMANAGE controlvm "$VM_NAME" keyboardputstring "file:///cdrom/preseed.cfg"
 VBOXMANAGE controlvm "$VM_NAME" keyboardputscancode 1C
 VBOXMANAGE controlvm "$VM_NAME" keyboardputscancode 9C
 
-# Ask user to press enter to continue
-read -p "Press Enter to continue with the provisioning..."
+echo "waiting for the installation to complete. This may take a few minutes..."
 
 # Attempt to SSH into the VM
 USERNAME="debian"
 
 while true; do
-    ssh -o ConnectTimeout=5 "$USERNAME@localhost" -p 2222 "exit"
-    if [ $? -eq 0 ]; then
+    if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no  -o UserKnownHostsFile=/dev/null "$USERNAME@localhost" -p 2222 "exit" 2>/dev/null; then
         echo "Successfully connected to the VM."
         break
     else
-        echo "SSH connection failed. The VM may not be ready yet."
-        read -p "Press Enter to try again..."
+        echo "SSH connection failed. Retrying in 30s..."
+        sleep 30
     fi
 done
