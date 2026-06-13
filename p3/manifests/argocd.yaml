@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: will-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/k34n4y138/inception-of-things'
+    targetRevision: HEAD
+    path: 'p3/manifests/application'
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
