@@ -15,9 +15,9 @@ DEBIAN_ISO_LINK="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debia
 
 # Default VM configuration values
 DEFAULT_VM_NAME="debian-vm"
-DEFAULT_VM_CPUS=2
-DEFAULT_VM_RAM=2048
-
+DEFAULT_VM_CPUS=4
+DEFAULT_VM_RAM=4096 # 4GB in MB
+DEFAULT_DISK_SIZE=52048 # 50GB in MB
 
 # Set the download path
 DOWNLOAD_PATH="/tmp"
@@ -66,7 +66,7 @@ vboxmanage modifyvm "$VM_NAME" --cpus "$VM_CPUS" --memory "$VM_RAM"
 
 vboxmanage modifyvm "$VM_NAME" --nic1 nat
 vboxmanage modifyvm "$VM_NAME" --natpf1 "guestssh,tcp,,2222,,22"
-
+vboxmanage modifyvm "$VM_NAME" --natpf1 "argocd,tcp,,8067,,8067"
 
 vboxmanage modifyvm "$VM_NAME" --vram 64
 
@@ -80,7 +80,7 @@ if [[ -f "$DISK_PATH" ]]; then
     echo "Disk $DISK_PATH already exists. Skipping disk creation."
 else
     # Create a 10G dynamic disk
-    vboxmanage createmedium disk --filename "$DISK_PATH" --size 10240 --format VDI
+    vboxmanage createmedium disk --filename "$DISK_PATH" --size $DEFAULT_DISK_SIZE --format VDI
     echo "Disk created at $DISK_PATH."
 fi
 
@@ -97,9 +97,24 @@ PASSWORD="debian"
 FULLNAME="Debian User"
 ISO_PATH="$FILE_PATH"
 VM_NAME="$VM_NAME"
+SSH_PUBKEY_FILE="$HOME/.ssh/inception-of-things.pub"
+SSH_PRVKEY_FILE="$HOME/.ssh/inception-of-things"
+
+SSH_KEY=""
+
+if [[ -f "$SSH_PUBKEY_FILE" ]]; then
+    echo "SSH public key found. It will be added to the VM's authorized_keys."
+    SSH_KEY=$(cat "$SSH_PUBKEY_FILE")
+else
+    echo "No SSH public key found. The VM will be provisioned without an SSH key and you will need to provide password manually."
+fi
+
+POSTINSTALL_SCRIPT_CONTENT=$(< ./vm_postinstall_script.sh)
 
 
-POST_INSTALL_SCRIPT=$(base64 -b 0 ./vm_postinstall_script.sh)
+POSTINSTALL_SCRIPT_CONTENT=$(echo "$POSTINSTALL_SCRIPT_CONTENT" | sed "s|{{SSH_PUBKEY_PLACEHOLDER}}|$SSH_KEY|g")
+
+POST_INSTALL_SCRIPT=$(printf '%s' "$POSTINSTALL_SCRIPT_CONTENT" | base64 -b 0)
 
 vboxmanage unattended install "$VM_NAME" \
   --iso="$ISO_PATH" \
@@ -134,14 +149,16 @@ VBOXMANAGE controlvm "$VM_NAME" keyboardputscancode 9C
 echo "waiting for the installation to complete. This may take a few minutes..."
 
 # Attempt to SSH into the VM
-USERNAME="debian"
 
+SSH_OPTIONS="-p 2222 -o ConnectTimeout=50 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $SSH_PRVKEY_FILE"
+
+
+echo "Waiting for the VM to be ready for SSH connections..."
 while true; do
-    if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no  -o UserKnownHostsFile=/dev/null "$USERNAME@localhost" -p 2222 "exit" 2>/dev/null; then
-        echo "Successfully connected to the VM."
+    if ssh $SSH_OPTIONS "$USERNAME@localhost" "exit" 2>/dev/null; then
+        echo "Machine has been provisioned successfully."
         break
     else
-        echo "SSH connection failed. Retrying in 30s..."
-        sleep 30
+        sleep 1
     fi
 done
