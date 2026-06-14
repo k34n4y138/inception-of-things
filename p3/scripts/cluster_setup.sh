@@ -21,7 +21,7 @@ fi
 
 # pin the subnet the cluster will use
 
-k3d cluster create main --port '8067:80@loadbalancer'
+k3d cluster create main --port '8067:80@loadbalancer' --port '8888:8888@loadbalancer'
 
 kubectl wait --for=condition=Ready nodes --all --timeout=120s
 
