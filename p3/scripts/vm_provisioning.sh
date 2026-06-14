@@ -162,3 +162,28 @@ while true; do
         sleep 1
     fi
 done
+
+SSH_HOSTS_FILE="$HOME/.ssh/hosts"
+SSH_ROLE_NAME="debian-iot"
+SSH_ROLE_HOSTNAME="localhost"
+SSH_ROLE_PORT="2222"
+
+if [[ -f "$SSH_HOSTS_FILE" ]] && grep -qE "^[[:space:]]*Host[[:space:]]+$SSH_ROLE_NAME([[:space:]]|$)" "$SSH_HOSTS_FILE"; then
+    echo "SSH role '$SSH_ROLE_NAME' already exists in $SSH_HOSTS_FILE."
+else
+    echo "Creating SSH role '$SSH_ROLE_NAME' in $SSH_HOSTS_FILE..."
+    mkdir -p "$(dirname "$SSH_HOSTS_FILE")"
+    {
+        echo "Host $SSH_ROLE_NAME"
+        echo "    HostName $SSH_ROLE_HOSTNAME"
+        echo "    User $USERNAME"
+        echo "    Port $SSH_ROLE_PORT"
+        if [[ -f "$SSH_PRVKEY_FILE" ]]; then
+            echo "    IdentityFile $SSH_PRVKEY_FILE"
+        fi
+        if [[ -n "$SSH_KEY" ]]; then
+            echo "    # SSH public key available for authorized_keys setup"
+        fi
+        echo
+    } >> "$SSH_HOSTS_FILE"
+fi
