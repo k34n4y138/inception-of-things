@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitea
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://dl.gitea.com/charts/
+    chart: gitea
+    targetRevision: 12.6.0
+    helm:
+      valuesObject:
+        gitea:
+          admin:
+            existingSecret: gitea-admin
+          config:
+            repository:
+              ENABLE_PUSH_CREATE_USER: true
+            database:
+              DB_TYPE: sqlite3
+            server:
+              DOMAIN: gitea.example.com
+              ROOT_URL: https://gitea.example.com
+
+        postgresql:
+          enabled: false
+        postgresql-ha:
+          enabled: false
+        redis-cluster:
+          enabled: false
+
+        service:
+          http:
+            port: 8068
+            type: LoadBalancer
+          ssh:
+            port: 8069
+            type: LoadBalancer
+        persistence:
+          enabled: true
+          size: 10Gi
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitea
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
