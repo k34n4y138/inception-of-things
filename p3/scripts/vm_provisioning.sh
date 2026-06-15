@@ -67,6 +67,7 @@ vboxmanage modifyvm "$VM_NAME" --cpus "$VM_CPUS" --memory "$VM_RAM"
 vboxmanage modifyvm "$VM_NAME" --nic1 nat
 vboxmanage modifyvm "$VM_NAME" --natpf1 "guestssh,tcp,,2222,,22"
 vboxmanage modifyvm "$VM_NAME" --natpf1 "argocd,tcp,,8067,,8067"
+vboxmanage modifyvm "$VM_NAME" --natpf1 "wills,tcp,,8888,,8888"
 
 vboxmanage modifyvm "$VM_NAME" --vram 64
 
@@ -101,6 +102,21 @@ SSH_PUBKEY_FILE="$HOME/.ssh/inception-of-things.pub"
 SSH_PRVKEY_FILE="$HOME/.ssh/inception-of-things"
 
 SSH_KEY=""
+
+# Ensure private key exists; if not, generate a new key pair (private + public)
+if [[ ! -f "$SSH_PRVKEY_FILE" ]]; then
+    echo "SSH private key not found. Generating key pair at $SSH_PRVKEY_FILE..."
+    mkdir -p "$(dirname "$SSH_PRVKEY_FILE")"
+    ssh-keygen -t ed25519 -N "" -f "$SSH_PRVKEY_FILE" -q
+    chmod 600 "$SSH_PRVKEY_FILE"
+fi
+
+# Ensure public key exists (generate from private if necessary)
+if [[ ! -f "$SSH_PUBKEY_FILE" ]]; then
+    echo "SSH public key not found. Creating public key from private key..."
+    ssh-keygen -y -f "$SSH_PRVKEY_FILE" > "$SSH_PUBKEY_FILE"
+    chmod 644 "$SSH_PUBKEY_FILE"
+fi
 
 if [[ -f "$SSH_PUBKEY_FILE" ]]; then
     echo "SSH public key found. It will be added to the VM's authorized_keys."
